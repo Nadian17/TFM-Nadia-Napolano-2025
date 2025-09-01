@@ -1,0 +1,537 @@
+---
+title: "Suicide and Economic Crisis: The Evolution of the Phenomenon in Italy"
+author: "Nadia Napolano"
+date: "2025-08-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+A country’s economic conditions and socio-economic stability profoundly influence collective well-being. Their effects, however, extend beyond material security to shape emotional development and individual well-being. Throughout life, different socio-economic contexts could lead to markedly different versions of ourselves — more stable or more fragile.
+ Considering this perspective, this thesis examines the relationship between socio-economic conditions and suicide rates in Italy between 2005 and 2020, with particular attention to the damaging role of the 2008 global financial crisis. The objective of the analysis is to understand how economic instability and regional disparities interact with individual vulnerability, showing that suicide cannot be interpreted only as a personal event but must also be interpreted as a social outcome shaped by broader structural dynamics. 
+
+These are all the libraries that are going to be used for the analysis.
+
+```{r, warning=FALSE}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(corrplot)     
+library(RColorBrewer)
+library(mapSpain)
+library(sf)
+library(cowplot)
+library(tidyverse) 
+library(plm) 
+library(car) 
+library(ggplot2) 
+library(lmtest)
+library(pcse)
+library(tseries)
+library(sandwich)
+library(ggrepel)
+library(stringr)
+library(ggthemes)
+library(rnaturalearth)
+```
+
+
+##Data reading
+Let's start adding the data.
+Four datasets are needed; "data", "employment_data", "data_graph" and "suicide_data". They are all in excel and can be found in my github public page.
+
+```{r, warning=FALSE, message=FALSE}
+library(readxl)
+data <- read_excel("C:/Users/utente/Desktop/Nadia Napolano task 1,,_files/data.xlsx")
+data_graph <- read_excel("C:/Users/utente/Desktop/Nadia Napolano task 1,,_files/data_graph.xlsx")
+employment_data <- read_excel("C:/Users/utente/Desktop/Nadia Napolano task 1,,_files/employment_data.xlsx")
+dati_suicidio_it <- read_excel("C:/Users/utente/Desktop/Nadia Napolano task 1,,_files/dati suicidio it.xlsx")
+```
+
+#Suicide data table
+
+A first look at the main statistical insights about the dependent variable: "suicide index".
+
+```{r, warning=FALSE, message=FALSE}
+df_statistiche_region<- data |> 
+  group_by(region) |> 
+  summarise(
+    average = mean(suicide_index, na.rm = TRUE),
+    minimum = min(suicide_index, na.rm = TRUE),
+    maximum = max(suicide_index, na.rm = TRUE),
+    variance = var(suicide_index, na.rm = TRUE),
+    .groups = "drop"
+  )
+df_statistiche_year <- data |> 
+  group_by(TIME_PERIOD) |> 
+  summarise(
+    average = mean(suicide_index, na.rm = TRUE),
+    minimum = min(suicide_index, na.rm = TRUE),
+    maximum = max(suicide_index, na.rm = TRUE),
+    variance = var(suicide_index, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+```
+
+## Graphs
+
+In the first part, some graphs will be designed to improve the understanding of the data available.
+
+#Employment data
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data_graph, aes(x = TIME_PERIOD, y = employment, color = geo_area)) +
+  geom_line(size = 0.7) +
+  geom_point(size = 1.5) +
+  scale_x_continuous(
+  breaks = seq(min(data_graph$TIME_PERIOD), max(data_graph$TIME_PERIOD), by = 1)
+  ) +
+  labs(
+    title = "Trend of Employment Rate by Geographical Area in Italy"
+  ) +
+  theme_solarized(light = TRUE) +
+  theme(
+    plot.title = element_text(size = 12, face = "italic", hjust = 0.5, color = "black", margin = margin(b = 15)),
+    axis.title = element_blank(),
+    axis.text = element_text(size = 10, color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1, margin = margin(t = 10)),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+    legend.title = element_blank(),
+    legend.position = "top"
+  )
+
+
+```
+
+The graph highlights economic inequalities in Italy through employment trends, showing that the South and the Islands face a significant gap compared to the rest of the country.
+
+# Suicides behaviour in the Country
+
+```{r, warning=FALSE, message=FALSE}
+
+# Scatterplot
+p<-ggplot(data_graph, aes(x = employment, y = suicidi_index, color = geo_area)) +
+  geom_point(size = 2.2, alpha = 0.8) +
+  labs(
+    title = "Relationship Between Employment and Suicide Index by Geographical Area",
+    x = "Employment Rate",
+    y = "Suicide Index"
+  ) +
+  theme_solarized(light = TRUE) +
+ theme(
+  plot.title = element_text(size = 15, face = "italic", hjust = 0.5, color = "black", margin = margin(b = 15)),
+  axis.text = element_text(size = 12, color = "black"),
+  axis.title = element_text(size = 13, color = "black"),
+  panel.border = element_rect(color = "black", fill = NA, linewidth = 1),
+  legend.title = element_blank(),
+  legend.position = "top",
+  legend.text = element_text(size = 15, color = "black", face= "italic")  
+)
+p
+
+```
+
+# Employment graph
+
+```{r, warning=FALSE, message=FALSE}
+#labeling data
+label_data <- data.frame(
+  Year = c(2013, 2008, 2018),
+  value = c(55, 57.5, 57.5),
+  label = c("55", "57.5", "57.5")
+)
+
+max_label_value <- 65 
+#graph design
+p<-employment_data |> 
+  ggplot(aes(x = Year, y = occupation_15_65_it)) +
+  geom_col(width = 0.5, fill = "azure3", color = "black") +
+  geom_text(data = label_data, aes(x = Year, y = value + 3.5, label = label),
+            color = "black", size = 3.5, fontface = "italic") +
+  scale_x_continuous(
+    breaks = unique(employment_data$Year),
+    labels = function(x) substr(as.character(x), 3, 4)
+  ) +
+  scale_y_continuous(
+    limits = c(0, max_label_value),     
+    breaks = scales::pretty_breaks(n = 5),
+    labels = function(x) paste0(x, "%"),
+    expand = expansion(0)
+  ) +
+  labs(
+    x = "",
+    y = "",
+    title = "Italian Employment Rate"
+  ) +
+  theme(
+    plot.margin = unit(c(1, 1, 1, 1), "cm"),
+    panel.background = element_rect(fill = "#f0e6d2"),
+    plot.background = element_rect(fill = "#f7f1de"), 
+    plot.title = element_text(size = 17.5, face = "italic",
+                              hjust = 0.5,
+                              margin = margin(b = 15)),
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 10, color = "black",
+                              face = "bold"),
+    axis.text = element_text(size = 8, color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1, margin = margin(t = 10), size = 13.7),
+    axis.text.y = element_text(size = 13),
+    axis.title.y = element_text(margin = margin(r = 10)),
+    axis.ticks.x = element_blank()
+  )
+p
+
+```
+
+The graph shows employment trends in Italy: the values reflect the 2008 crisis, with a negative trend until 2013, when they start to rise again. In 2020, a new decline in employment is observed due to the COVID-19 pandemic.
+
+# Suicide in italy between 2005-2020
+```{r}
+
+min_suicide <- min(dati_suicidio_it$Suicides_100000, na.rm = TRUE)
+max_suicide <- max(dati_suicidio_it$Suicides_100000, na.rm = TRUE)
+
+#Let's highlight some values
+valori_evidenziati <- data.frame(
+  year = c(2007, 2011, 2018),
+  Suicides_100000 = c(6.7, 7.5, 6.8)
+)
+
+grafico <- dati_suicidio_it |> 
+  ggplot(aes(x = year)) +
+  geom_line(aes(y = Suicides_100000), size = 0.5, color = "burlywood4") + 
+  stat_smooth(aes(y = Suicides_100000), se = FALSE, linetype = "dashed", color = "antiquewhite2", alpha = 0.4) + 
+  geom_point(aes(y = Suicides_100000), size = 1.2, color = "burlywood4") +
+  geom_point(data = valori_evidenziati, aes(y = Suicides_100000), color = "burlywood4", size = 1.5) +
+  geom_text(data = valori_evidenziati, aes(y = Suicides_100000, label = Suicides_100000), 
+            color = "black", vjust = -1, size = 4, fontface = "italic") +
+  geom_line(aes(y = female), color = "indianred2", size = 0.6, linetype = "solid") +
+  geom_line(aes(y = male), color = "steelblue", size = 0.6, linetype = "solid") +
+  geom_hline(yintercept = min_suicide, linetype = "dashed", color = "burlywood3", linewidth = 0.5) +
+  geom_hline(yintercept = max_suicide, linetype = "dashed", color = "burlywood3", linewidth = 0.5) +  
+  scale_y_continuous(
+    expand = expansion(mult = c(0, 0.05)),
+    breaks = NULL  
+  ) +
+  scale_x_continuous(
+    breaks = seq(min(dati_suicidio_it$year), max(dati_suicidio_it$year), by = 1)
+  ) +
+  labs(
+    title = "Trend of Suicide Rate in Italy",
+    subtitle = "total, average and female"
+  ) +
+  theme_solarized(light = TRUE) +
+  theme(
+    plot.title = element_text(size = 12, face = "italic", hjust = 0.5, color = "black", margin = margin(b = 15)),
+    plot.subtitle = element_text(size = 10, face = "italic", hjust = 0.5, color = "black", margin = margin(b = 10)),
+    axis.title = element_blank(),
+    axis.text = element_text(size = 10, color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1, margin = margin(t = 10)),
+    axis.text.y = element_blank(),      # nasconde numeri y
+    axis.ticks.y = element_blank(),     # nasconde tick y
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 1)
+  )
+
+print(grafico)
+```
+
+Data from the International statistic institute of Italy show that suicide rates among men increased during the 2008 recession, with unusually high levels persisting until 2015. For women, the impact was much smaller, with only a slight increase observed between 2012 and 2014.
+
+# Preparing data for designing maps 
+```{r}
+# average info
+mapa_avg <- data |> 
+  group_by(region) |> 
+  summarise(suicide_index_mean = mean(suicide_index, na.rm = TRUE)) |> 
+  ungroup()
+# Rename to match `region`
+mapping <- c(
+  "Piemonte"= "Piemonte",
+  "Abruzzo" = "Abruzzo",
+  "Basilicata" = "Basilicata",
+  "Calabria" = "Calabria",
+  "Campania" = "Campania",
+  "Emilia Romagna" = "Emilia-Romagna",  # Rename to match `region`
+  "Friuli Venezia Giulia" = "Friuli-Venezia Giulia",  # Rename to match `region`
+  "Lazio" = "Lazio",
+  "Liguria" = "Liguria",
+  "Lombardia" = "Lombardia",
+  "Marche" = "Marche",
+  "Molise" = "Molise",
+  "Provincia Autonoma Bolzano" = "Trentino-Alto Adige",  # Merge with Trentino-Alto Adige
+  "Provincia Autonoma Trento" = "Trentino-Alto Adige",  # Merge with Trentino-Alto Adige
+  "Puglia" = "Apulia",  # Rename to match `region`
+  "Sardegna" = "Sardegna",
+  "Sicilia" = "Sicily",  
+  "Toscana" = "Toscana",
+  "Umbria" = "Umbria",
+  "Valle d'Aosta" = "Valle d'Aosta",
+  "Veneto" = "Veneto"
+  
+)
+
+# Step 3: Apply the mapping to `data_italy$CCAA`
+mapa_avg$region <- mapping[mapa_avg$region]
+
+```
+
+
+#Map of Italy
+
+The graph shows the average suicide index between 2005 and 2020, providing a quick and clear view of regional patterns in the phenomenon.
+
+```{r, warning=FALSE, message=FALSE}
+italy <- ne_states(country = "Italy", returnclass = "sf")
+mapa_avg_sf <- ne_states(country = "Italy", returnclass = "sf")
+
+mapa_avg_sf <- italy |> 
+  left_join(mapa_avg, by = c("region" = "region"))
+# Creating the map
+p1 <- ggplot() +
+  geom_sf(data = mapa_avg_sf, aes(fill = suicide_index_mean), color = "black", size = 0.3) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf,
+           alpha = 0.2, fill = "white") +
+  theme_void() +
+  labs(
+    title = "Average suicide index 2005-2020",
+    fill = NULL 
+  ) +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "italic", size = 19),
+    text = element_text(face = "italic"),
+ plot.background = element_rect(fill = "#F5F5DC", color = NA),   # beige chiaro
+    panel.background = element_rect(fill = "#F5F5DC", color = NA)   # beige chiaro
+  ) +
+  coord_sf() +
+  scale_fill_gradient2(
+    low = "lightgreen", mid = "yellow", high = "darkred",
+    midpoint = median(mapa_avg_sf$suicide_index_mean, na.rm = TRUE)
+  )
+
+#printing the map
+print(p1)
+```
+
+A clear trend can be observed: suicide is a phenomenon with a significantly higher frequency in northern Italy.
+
+#Gdp italian graph
+A graph similar to the previous one, but allowing us to observe an economic indicator: GDP per capita.
+
+```{r, warning=FALSE, message=FALSE}
+mapa_gdp_sf <- ne_states(country = "Italy", returnclass = "sf")
+
+#getting the data
+mapa_gdp_avg <- data |> 
+  mutate(region = mapping[region]) |> 
+  group_by(region) |> 
+  summarise(gdp_percapita_mean = mean(gdp_percapita, na.rm = TRUE)) |> 
+  ungroup()
+
+mapa_gdp_sf <- italy |> 
+  left_join(mapa_gdp_avg, by = c("region" = "region"))
+
+# Creating the map
+p2 <- ggplot() +
+  geom_sf(data = mapa_gdp_sf, aes(fill = gdp_percapita_mean), color = "black", size = 0.3) +
+  theme_void() +
+  labs(title = "Average GDP per capita 2005-2020", fill = NULL) +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "italic", size = 19),
+    text = element_text(face = "italic"),
+    plot.background = element_rect(fill = "#F5F5DC", color = NA),
+    panel.background = element_rect(fill = "#F5F5DC", color = NA)
+  ) +
+  coord_sf() +
+  scale_fill_gradient2(
+    low = "darkred", mid = "yellow", high = "lightgreen",
+    midpoint = median(mapa_gdp_sf$gdp_percapita_mean, na.rm = TRUE)
+  )
+
+print(p2)
+```
+The graph shows a clear contrast: GDP per capita in southern Italy is significantly lower, displaying a trend that is almost the mirror image of the previous one.
+
+## Analysis
+
+Let's start observing the correlation between variables.
+The variables considered are as follows:
+•	Suicide index: Suicide rate per 100,000 inhabitants (main dependent variable).
+•	Time period: Year of observation (2005–2020).
+•	Region: Identifier of the Italian region, representing the spatial unit of analysis.
+•	GDP per capita: Gross Domestic Product per capita, expressed in euros at constant prices.
+•	Employment percentage: Employment rate of the population aged 15–65.
+•	Risk of poverty: Poverty risk rate, defined as the percentage of the population with income below the relative poverty threshold.
+•	Inequality 80-20: 80/20 income ratio, an indicator of economic inequality between the highest and lowest income groups.
+•	Neet rate: Share of young people classified as NEET (Not in Education, Employment, or Training), expressed as a percentage.
+•	University graduates: Percentage of the population holding a university degree, used as a proxy for human capital.
+•	Fertility region rate: Regional fertility rate (average number of children per woman).
+•	Gender gap index: Index of gender disparity calculated by Eurostat, measuring differences between men and women in various dimensions (employment, education, social opportunities).
+•	Geo area: Geographic macro-area (North-West, North-East, Center, South, Islands).
+•	Population dummy: Dummy variable distinguishing regions with high or low population, i.e., greater or fewer than 5,000,000 inhabitants.
+•	Lagged Neet rate: Share of young people classified as NEET (Not in Education, Employment, or Training), expressed as a percentage of the year before.
+•	Period: Categorical variable dividing years into phases (pre-crisis 2005–2007 and post-crisis 2008–2012).
+
+```{r, warning=FALSE, message=FALSE}
+
+corr_matrix <- cor(data[, c(
+  "NEET_rate",
+  "risk_poverty",
+  "gdp_percapita",
+  "inequality_80",
+  "employment_percentage",
+  "Fertility_region_rate",
+  "gender_gap_ind"
+)], use = "complete.obs")
+
+corrplot(corr_matrix, method = "circle")
+
+```
+
+Correlations exceeding 0.80 may adversely affect the analysis due to potential multicollinearity issues. Therefore, a Variance Inflation Factor (VIF) test will be conducted subsequently to assess multicollinearity.
+
+## VIF evaluation
+
+```{r}
+library(car)
+
+# Modello OLS con le stesse variabili usate nel panel
+ols_model <- lm(suicide_index ~  inequality_80+  geo_area + employment_percentage +population_dummy+ gender_gap_ind+ gdp_percapita+ NEET_rate , data = data)
+
+vif(ols_model)
+```
+
+The Variance Inflation Factor (VIF) measures how much the variance of a regression coefficient is increased due to multicollinearity. A value higher than 6 is considered to express severe multicollinearity. In this case a selection of variable is needed, considering the correlation observed and the behaviour in the analysis.
+
+##ols analysis
+
+OLS (Ordinary Least Squares) estimates the coefficients of a linear regression by minimizing the sum of the squares of the residuals. It is not ideal for panel data because it ignores unobserved heterogeneity between individuals, risking biased estimates; however, it can be used as a first approach to observe the relationship between variables, before moving on to fixed or random effects models.
+
+```{r, warning=FALSE, message=FALSE}
+ols<-lm(suicide_index ~  inequality_80+  geo_area + employment_percentage +population_dummy+ gender_gap_ind+ gdp_percapita+ NEET_rate, data=data)
+summary(ols)
+```
+
+The OLS model indicates that variables such as inequality_80, certain geographic areas, population_dummy>4M, gender_gap_ind, and gdp_percapita significantly influence the suicide index. Specifically, higher inequality and gender gap are associated with a decrease in the index, while some regions show higher values. 
+
+```{r, warning=FALSE, message=FALSE}
+yhat <- ols$fitted
+plot(data$gdp_percapita, data$suicide_index, pch=19, xlab="x1", ylab="y")
+ abline(lm(data$suicide_index~data$gdp_percapita),lwd=3, col="red")
+```
+
+##Ols analysis with the regional variable as factor
+
+```{r, warning=FALSE, message=FALSE}
+ fixed.dum <-lm(suicide_index ~  inequality_80+ gdp_percapita +population_dummy+factor(region)-1, data=data)
+summary(fixed.dum)
+```
+
+The OLS model explains about 96% of the variance in suicide_index. GDP per capita has a significant negative effect, suggesting that higher economic well-being is associated with lower suicide rates. Population size is also highly significant, with larger populations showing higher suicide indices. Inequality in 1980 has a positive but not statistically significant effect, so its influence remains uncertain. Most regional dummies are significant, highlighting substantial regional differences, while Veneto is dropped due to singularity, likely because of collinearity with other regions. 
+However, this OLS specification is not suitable for panel data and would not be selected, as it cannot properly account for the time dimension and unobserved heterogeneity.
+
+## Fixed effects model
+
+```{r, warning=FALSE, message=FALSE}
+fe<-plm(suicide_index ~  inequality_80+ gdp_percapita+ NEET_rate, data=data, index=c("region","TIME_PERIOD"), model = "within")
+summary(fe)
+fixef(fe)
+```
+
+The model explains about 25% of the variance (R² = 0.253).
+
+Betwwen the chosen variables, only the variable NEET_Rate is statistically significant (p < 0.001) and positively associated with the suicide index, indicating that higher rates of people not working or studying relate to higher suicide rates. The variables inequality_80 and gdp_percapita are not significant predictors in this model.
+
+# Let's add an interaction variable
+Adding an interaction variable makes the analysis more complete: in this case, the temporal dimension is crucial, and combining it with the geographical dimension provides additional insights.
+
+```{r, warning=FALSE, message=FALSE}
+fe<-plm(suicide_index ~  inequality_80+ NEET_rate + gdp_percapita + period*macro_area, data=data, index=c("region","TIME_PERIOD"), model = "within")
+summary(fe)
+fixef(fe)
+
+```
+
+The inclusion of the interaction between periodo (time period) and macro_area allows the model to capture regional differences before and after the 2008 economic crisis. The variable periodPre2008 is highly significant and negative, indicating that, overall, suicide rates were significantly lower before 2008 compared to the reference period, suggesting an increase after the crisis.
+
+The interaction terms (periodoPre2008:macro_areaNord and periodoPre2008:macro_areaSud_Isole) are not significant, implying that the change in suicide rates related to the crisis does not differ substantially across these macro areas.
+
+The variable NEET_rate remains a significant positive predictor, confirming its robust association with higher suicide rates. The overall explanatory power of the model improved (R² increased from ~0.25 to ~0.35) after adding the crisis period and regional interactions, indicating a better fit.
+
+```{r}
+p<-plm(formula = suicide_index ~ NEET_rate + 
+    risk_poverty + period * macro_area, data = data, 
+    model = "within", index = c("region", "TIME_PERIOD"))
+summary(p)
+
+```
+
+Adding the variable "risk of poverty", instead of "inequality" seems to improve slightly the model, comparing the value of the R-Squared.
+The NEET rate and the risk of poverty show positive and statistically significant effects on the suicide index. Specifically, a one-percentage point increase in the NEET rate is associated with an increase of 0.137 suicides per 100,000 inhabitants, while a one-percentage point rise in the risk of poverty corresponds to an increase of 0.090 suicides per 100,000 inhabitants. These findings suggest that social exclusion among young people and material deprivation represent critical risk factors.
+The temporal dimension further seems to confirm the disruptive role of the 2008 global financial crisis. .The coefficient of the period variable indicates that, on average, suicide rates were significantly lower before 2008 (–1.660) compared to the post-crisis years.
+
+```{r, warning=FALSE, message=FALSE}
+
+ pFtest(p, ols) 
+```
+
+Based on the pFtest, the fixed effects model provides a significantly better fit than the simple OLS model, indicating, as expected, that controlling for individual heterogeneity improves the analysis.
+
+## Random effect model
+
+```{r, warning=FALSE, message=FALSE}
+re<-plm(suicide_index ~  inequality_80+ NEET_rate +  gdp_percapita + period*macro_area, data=data, index=c("region","TIME_PERIOD"), model="random")
+summary(re)
+```
+
+The random effects model shows that NEET_rate positively and significantly affects suicide rates, while suicide rates were significantly lower before 2008. The southern/island region has significantly lower rates compared to the baseline. Other variables, including inequality and GDP per capita, are not significant. The effect of the 2008 crisis does not differ across regions. The model captures a substantial part of the variation, 33% of the variance.
+
+##Fixed or random effects?
+
+One way to check is to run the Hausman test. Here H0 is that
+the preferred model is RE. The alternative Ha is that it is FE.
+
+```{r, warning=FALSE, message=FALSE}
+library(plm)
+phtest(p,re)
+```
+
+The Hausman test yields a chi-squared value of 21.613 with 6 degrees of freedom and a p-value of 0.0056. Since the p-value is less than 0.05, we reject the null hypothesis that the random effects model is consistent. This suggests that the fixed effects model is more appropriate for the data.
+
+```{r, warning=FALSE, message=FALSE}
+plmtest(p, c("time"), type=("bp"))
+```
+
+The Lagrange Multiplier (Breusch-Pagan) test for time effects yields a chi-square statistic of 30.036 with 1 degree of freedom, and a highly significant p-value of 4.24 × 10⁻⁸. This strongly rejects the null hypothesis that there are no time effects in the panel data model. This confirms the relevance of the years in the behaviour of the dependent variable.
+
+##laggedvariable
+Let's consider the lagged NEET_rate: since suicide is generally seen as a consequence of prolonged stress, including a lagged variable may provide a more accurate representation and improve the model’s results.
+
+```{r, warning=FALSE, message=FALSE}
+data$with_degree <- NULL #cancel the column with many NAs
+data_clean <- na.omit(data)
+modlagged <- plm(
+  suicide_index ~ lagged_notworking + 
+    risk_poverty + period * macro_area,
+  data = data_clean, model = "within", index = c("region", "TIME_PERIOD"))
+summary(modlagged)
+```
+Although NEET_rate is significant, the overall model shows a significant deterioration in explanatory power, and interpretability has not been improved than in the model with the contemporary variable. 
+
+It therefore seems that the model with the best explanatory power is the fixed effects model with the interaction variable.
+
+```{r}
+final_model<-plm(formula = suicide_index ~ NEET_rate + 
+    risk_poverty + period * macro_area, data = data, 
+    model = "within", index = c("region", "TIME_PERIOD"))
+summary(final_model)
+
+```
+
+These results imply that social exclusion among young people and material deprivation can represent critical risk factors, reinforcing the interpretation of suicides as not only an individual phenomenon but also a socio-economic outcome.
+The temporal dimension further confirms the disruptive role of the 2008 global financial crisis. The coefficient of the period variable indicates that, on average, suicide rates were significantly lower before 2008 (–1.660) compared to the post-crisis years. This discontinuity underlines the crisis as a turning point, with long-lasting consequences and changes for mental health and social well-being.
