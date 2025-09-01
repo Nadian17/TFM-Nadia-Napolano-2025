@@ -31,12 +31,17 @@ library(stringr)
 library(ggthemes)
 library(rnaturalearth)
 
-Project Structure
+#Project Structure
 
 The thesis is organized into two main parts:
 Descriptive Analysis
+
 Exploration of the datasets through visualizations and charts.
+
 Summary statistics to highlight key insights.
+
 Statistical Significance Testing
+
 Evaluation of variable significance using different econometric models.
+
 Both fixed effects and random effects models are implemented and compared.
