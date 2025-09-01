@@ -29,9 +29,9 @@ library(sandwich)
 library(ggrepel)
 library(stringr)
 library(ggthemes)
-library(rnaturalearth)
+library(rnaturalearth)]
 
-#Project Structure
+Project Structure
 
 The thesis is organized into two main parts:
 Descriptive Analysis
